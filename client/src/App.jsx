@@ -354,7 +354,8 @@ function App() {
                   <div key={index} className={`message ${isSentByMe ? 'sent' : 'received'}`}>
                     <p>{msg.text}</p>
                     <span className="msg-time">
-                      {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
+                      {isSentByMe && <span className="msg-ticks">✓✓</span>}
                     </span>
                   </div>
                 );

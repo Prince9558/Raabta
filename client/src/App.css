@@ -245,12 +245,12 @@
 
 .message {
   max-width: 65%;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 6px 7px 8px 9px;
+  border-radius: 7.5px;
   position: relative;
   word-wrap: break-word;
-  display: flex;
-  flex-direction: column;
+  display: inline-block;
+  min-width: 80px;
 }
 
 .message.sent {
@@ -266,17 +266,30 @@
 }
 
 .message p {
-  font-size: 14.5px;
+  font-size: 14.2px;
   line-height: 19px;
   color: #e9edef;
-  margin-bottom: 10px;
+  margin: 0;
+  padding-right: 50px;
+  padding-bottom: 5px;
 }
 
 .msg-time {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.6);
-  align-self: flex-end;
-  margin-top: -10px;
+  position: absolute;
+  bottom: 4px;
+  right: 7px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.msg-ticks {
+  color: #53bdeb;
+  font-size: 11px;
+  line-height: 1;
 }
 
 .chat-input-container {
