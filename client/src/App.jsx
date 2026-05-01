@@ -79,9 +79,19 @@ function App() {
     try {
       const res = await axios.post(`${API_URL}/login`, { phoneNumber });
       setCurrentUser(res.data);
-      setContacts(res.data.contacts || []);
+      const fetchedContacts = res.data.contacts || [];
+      setContacts(fetchedContacts);
       localStorage.setItem('raabta_phone', phoneNumber);
       socket.emit('register', res.data._id);
+      
+      // Restore active chat if exists
+      const savedChatId = localStorage.getItem('raabta_active_chat');
+      if (savedChatId) {
+        const contactToLoad = fetchedContacts.find(c => c._id === savedChatId);
+        if (contactToLoad) {
+          loadChat(contactToLoad, res.data._id);
+        }
+      }
     } catch (err) {
       alert('Error logging in');
     } finally {
@@ -98,6 +108,7 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('raabta_phone');
+    localStorage.removeItem('raabta_active_chat');
     setCurrentUser(null);
     setActiveChat(null);
     setContacts([]);
@@ -120,10 +131,11 @@ function App() {
     }
   };
 
-  const loadChat = async (contact) => {
+  const loadChat = async (contact, currentUserId = currentUser?._id) => {
     setActiveChat(contact);
+    localStorage.setItem('raabta_active_chat', contact._id);
     try {
-      const res = await axios.get(`${API_URL}/messages/${currentUser._id}/${contact._id}`);
+      const res = await axios.get(`${API_URL}/messages/${currentUserId}/${contact._id}`);
       setMessages(res.data);
     } catch (err) {
       console.error(err);
@@ -292,7 +304,10 @@ function App() {
                 <ArrowLeft 
                   size={24} 
                   className="icon back-btn" 
-                  onClick={() => setActiveChat(null)} 
+                  onClick={() => {
+                    setActiveChat(null);
+                    localStorage.removeItem('raabta_active_chat');
+                  }} 
                 />
                 <div className="profile-pic">
                   <User size={24} color="#fff" />
