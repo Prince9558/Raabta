@@ -47,8 +47,23 @@ function App() {
 
     const handlePrivateMessage = (msg) => {
       // Only append if it's the current chat
-      if (activeChat && (msg.sender._id === activeChat._id || msg.sender._id === currentUser?._id)) {
-        setMessages(prev => [...prev, msg]);
+      if (activeChat) {
+        const isFromActiveContact = msg.sender._id === activeChat._id;
+        const isToActiveContact = msg.receiver === activeChat._id || (msg.receiver._id && msg.receiver._id === activeChat._id);
+        const isFromMe = msg.sender._id === currentUser?._id;
+        
+        if (isFromActiveContact || (isFromMe && isToActiveContact)) {
+          // Check if it's already added optimistically (by me)
+          setMessages(prev => {
+            if (isFromMe && prev.some(p => p.text === msg.text && p._id && p._id.length > 10 && !p._id.includes(/[a-f]/))) {
+              // Replace optimistic message with actual DB message
+              return prev.map(p => (p.text === msg.text && p._id.length > 10 && !p._id.includes(/[a-f]/)) ? msg : p);
+            }
+            // Check for strict duplicates
+            if (prev.some(p => p._id === msg._id)) return prev;
+            return [...prev, msg];
+          });
+        }
       }
     };
 
@@ -118,10 +133,22 @@ function App() {
   const sendMessage = (e) => {
     e.preventDefault();
     if (inputMessage.trim() && activeChat) {
+      const msgText = inputMessage;
+      
+      // Optimistic Update: Show message instantly in UI
+      const optimisticMsg = {
+        _id: Date.now().toString(), // temporary ID
+        sender: currentUser,
+        receiver: activeChat._id,
+        text: msgText,
+        createdAt: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, optimisticMsg]);
+
       socket.emit('private message', {
         senderId: currentUser._id,
         receiverId: activeChat._id,
-        text: inputMessage
+        text: msgText
       });
       setInputMessage('');
     }
