@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { socket } from './socket';
 import axios from 'axios';
-import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X } from 'lucide-react';
+import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X, Reply, Smile } from 'lucide-react';
 import { JitsiMeeting } from '@jitsi/react-sdk';
 import './App.css';
 
@@ -23,6 +23,9 @@ function App() {
   // Call feature state
   const [isCalling, setIsCalling] = useState(false);
   const [callType, setCallType] = useState('video'); // 'audio' or 'video'
+  
+  // Reply feature
+  const [replyingTo, setReplyingTo] = useState(null);
   
   const messagesEndRef = useRef(null);
 
@@ -88,12 +91,18 @@ function App() {
       }
     };
 
+    const handleReactionUpdated = (updatedMsg) => {
+      setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
+    };
+
     socket.on('connect', onConnect);
     socket.on('private message', handlePrivateMessage);
+    socket.on('reaction updated', handleReactionUpdated);
 
     return () => {
       socket.off('connect', onConnect);
       socket.off('private message', handlePrivateMessage);
+      socket.off('reaction updated', handleReactionUpdated);
       socket.disconnect();
     };
   }, []); // Run only once on mount
@@ -169,6 +178,10 @@ function App() {
     e.preventDefault();
     if (inputMessage.trim() && activeChat) {
       const msgText = inputMessage;
+      const replyData = replyingTo ? { 
+        text: replyingTo.text, 
+        senderName: (replyingTo.sender?._id || replyingTo.sender) === currentUser._id ? 'You' : activeChat.phoneNumber 
+      } : null;
       
       // Optimistic Update: Show message instantly in UI
       const optimisticMsg = {
@@ -176,6 +189,7 @@ function App() {
         sender: currentUser,
         receiver: activeChat._id,
         text: msgText,
+        replyTo: replyData,
         createdAt: new Date().toISOString()
       };
       setMessages(prev => [...prev, optimisticMsg]);
@@ -183,9 +197,21 @@ function App() {
       socket.emit('private message', {
         senderId: currentUser._id,
         receiverId: activeChat._id,
-        text: msgText
+        text: msgText,
+        replyTo: replyData
       });
       setInputMessage('');
+      setReplyingTo(null);
+    }
+  };
+
+  const sendReaction = (messageId, emoji) => {
+    if (messageId && !messageId.startsWith('optimistic_')) {
+      socket.emit('reaction', {
+        messageId,
+        receiverId: activeChat._id,
+        reaction: emoji
+      });
     }
   };
 
@@ -352,11 +378,28 @@ function App() {
                 const isSentByMe = msg.sender === currentUser._id || msg.sender?._id === currentUser._id;
                 return (
                   <div key={index} className={`message ${isSentByMe ? 'sent' : 'received'}`}>
+                    {msg.replyTo && (
+                      <div className="message-reply">
+                        <div className="name">{msg.replyTo.senderName}</div>
+                        <div className="text">{msg.replyTo.text}</div>
+                      </div>
+                    )}
                     <p>{msg.text}</p>
                     <span className="msg-time">
                       {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
                       {isSentByMe && <span className="msg-ticks">✓✓</span>}
                     </span>
+                    {msg.reaction && (
+                      <div className="reaction-bubble">{msg.reaction}</div>
+                    )}
+                    <div className="message-actions">
+                      <div className="action-btn" onClick={() => setReplyingTo(msg)}>
+                        <Reply size={14} />
+                      </div>
+                      <div className="action-btn" onClick={() => sendReaction(msg._id, '❤️')}>
+                        <Smile size={14} />
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -364,6 +407,15 @@ function App() {
             </div>
 
             <div className="chat-input-container">
+              {replyingTo && (
+                <div className="replying-to-container">
+                  <div className="replying-to-content">
+                    <span className="replying-to-name">{(replyingTo.sender?._id || replyingTo.sender) === currentUser._id ? 'You' : activeChat.phoneNumber}</span>
+                    <span className="replying-to-text">{replyingTo.text}</span>
+                  </div>
+                  <X className="close-reply" size={20} onClick={() => setReplyingTo(null)} style={{cursor: 'pointer'}} />
+                </div>
+              )}
               <form onSubmit={sendMessage} className="chat-form">
                 <input
                   type="text"

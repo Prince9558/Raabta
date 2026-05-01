@@ -100,9 +100,9 @@ io.on('connection', (socket) => {
     console.log(`User ${userId} registered to socket ${socket.id}`);
   });
 
-  socket.on('private message', async ({ senderId, receiverId, text }) => {
+  socket.on('private message', async ({ senderId, receiverId, text, replyTo }) => {
     try {
-      const msg = new Message({ sender: senderId, receiver: receiverId, text });
+      const msg = new Message({ sender: senderId, receiver: receiverId, text, replyTo });
       await msg.save();
       
       const populatedMsg = await Message.findById(msg._id).populate('sender', 'phoneNumber');
@@ -113,6 +113,18 @@ io.on('connection', (socket) => {
       io.to(senderId).emit('private message', populatedMsg);
     } catch (err) {
       console.error('Error saving message:', err);
+    }
+  });
+
+  socket.on('reaction', async ({ messageId, receiverId, reaction }) => {
+    try {
+      const msg = await Message.findByIdAndUpdate(messageId, { reaction }, { new: true }).populate('sender', 'phoneNumber');
+      io.to(receiverId).emit('reaction updated', msg);
+      // also send back to sender so they see it
+      const senderIdStr = msg.sender._id.toString();
+      io.to(senderIdStr).emit('reaction updated', msg);
+    } catch (err) {
+      console.error('Error adding reaction:', err);
     }
   });
 
