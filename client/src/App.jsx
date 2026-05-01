@@ -76,9 +76,9 @@ function App() {
         if (isFromActiveContact || (isFromMe && isToActiveContact)) {
           // Check if it's already added optimistically (by me)
           setMessages(prev => {
-            if (isFromMe && prev.some(p => p.text === msg.text && p._id && p._id.length > 10 && !p._id.includes(/[a-f]/))) {
+            if (isFromMe && prev.some(p => p.text === msg.text && p._id && p._id.startsWith('optimistic_'))) {
               // Replace optimistic message with actual DB message
-              return prev.map(p => (p.text === msg.text && p._id.length > 10 && !p._id.includes(/[a-f]/)) ? msg : p);
+              return prev.map(p => (p.text === msg.text && p._id && p._id.startsWith('optimistic_')) ? msg : p);
             }
             // Check for strict duplicates
             if (prev.some(p => p._id === msg._id)) return prev;
@@ -172,7 +172,7 @@ function App() {
       
       // Optimistic Update: Show message instantly in UI
       const optimisticMsg = {
-        _id: Date.now().toString(), // temporary ID
+        _id: `optimistic_${Date.now()}`, // temporary ID
         sender: currentUser,
         receiver: activeChat._id,
         text: msgText,
