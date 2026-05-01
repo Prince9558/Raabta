@@ -1,0 +1,363 @@
+.app-container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  background-color: #111b21;
+  color: #e9edef;
+  overflow: hidden;
+}
+
+/* Login Screen */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  background-color: #0b141a;
+}
+
+.login-box {
+  background-color: #111b21;
+  padding: 40px;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 17px 50px 0 rgba(11,20,26,.19), 0 12px 15px 0 rgba(11,20,26,.24);
+}
+
+.login-box h2 {
+  margin-bottom: 10px;
+  color: #e9edef;
+}
+
+.login-box p {
+  color: #8696a0;
+  margin-bottom: 20px;
+}
+
+.login-box form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.login-box input {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #222d34;
+  background-color: #202c33;
+  color: #d1d7db;
+  font-size: 16px;
+  outline: none;
+}
+
+.login-box button {
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background-color: #00a884;
+  color: #111b21;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.login-box button:hover {
+  background-color: #02c097;
+}
+
+/* Sidebar */
+.sidebar {
+  flex: 30%;
+  max-width: 400px;
+  min-width: 300px;
+  border-right: 1px solid #222d34;
+  display: flex;
+  flex-direction: column;
+  background-color: #111b21;
+}
+
+.sidebar-header, .chat-header {
+  height: 60px;
+  background-color: #202c33;
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  justify-content: space-between;
+}
+
+.profile-pic {
+  width: 40px;
+  height: 40px;
+  background-color: #6a7175;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.header-icons {
+  display: flex;
+  gap: 20px;
+}
+
+.icon {
+  color: #aebac1;
+  cursor: pointer;
+}
+
+.add-contact-panel {
+  padding: 15px;
+  background-color: #202c33;
+  border-bottom: 1px solid #222d34;
+}
+
+.add-contact-panel form {
+  display: flex;
+  gap: 10px;
+}
+
+.add-contact-panel input {
+  flex: 1;
+  padding: 8px 12px;
+  background-color: #2a3942;
+  border: none;
+  border-radius: 8px;
+  color: #d1d7db;
+  outline: none;
+}
+
+.add-contact-panel button {
+  padding: 8px 15px;
+  background-color: #00a884;
+  color: #111b21;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.search-bar {
+  padding: 10px;
+  background-color: #111b21;
+  border-bottom: 1px solid #222d34;
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 8px 12px;
+  background-color: #202c33;
+  border: none;
+  border-radius: 8px;
+  color: #d1d7db;
+  outline: none;
+}
+
+.chat-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #222d34;
+}
+
+.chat-item:hover, .chat-item.active {
+  background-color: #202c33;
+}
+
+.chat-info {
+  margin-left: 15px;
+  flex: 1;
+}
+
+.chat-name {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.chat-name h4 {
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.last-message {
+  font-size: 14px;
+  color: #8696a0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.no-contacts {
+  padding: 30px 20px;
+  text-align: center;
+  color: #8696a0;
+}
+
+/* Main Chat Area */
+.main-chat {
+  flex: 70%;
+  display: flex;
+  flex-direction: column;
+  background-color: #0b141a;
+  position: relative;
+}
+
+.chat-header-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.back-btn {
+  display: none; /* Hidden on desktop */
+}
+
+.chat-title h3 {
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.chat-title p {
+  font-size: 13px;
+  color: #8696a0;
+}
+
+.messages-container {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+  background-size: contain;
+}
+
+.message {
+  max-width: 65%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  position: relative;
+  word-wrap: break-word;
+  display: flex;
+  flex-direction: column;
+}
+
+.message.sent {
+  background-color: #005c4b;
+  align-self: flex-end;
+  border-top-right-radius: 0;
+}
+
+.message.received {
+  background-color: #202c33;
+  align-self: flex-start;
+  border-top-left-radius: 0;
+}
+
+.message p {
+  font-size: 14.5px;
+  line-height: 19px;
+  color: #e9edef;
+  margin-bottom: 10px;
+}
+
+.msg-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  align-self: flex-end;
+  margin-top: -10px;
+}
+
+.chat-input-container {
+  padding: 10px 16px;
+  background-color: #202c33;
+  display: flex;
+  align-items: center;
+}
+
+.chat-form {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 15px;
+}
+
+.chat-form input {
+  flex: 1;
+  padding: 12px;
+  background-color: #2a3942;
+  border: none;
+  border-radius: 8px;
+  color: #d1d7db;
+  font-size: 15px;
+  outline: none;
+}
+
+.chat-form button {
+  background: none;
+  border: none;
+  color: #8696a0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-form button:not(:disabled):hover {
+  color: #aebac1;
+}
+
+.welcome-placeholder {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #222d34;
+  border-bottom: 6px solid #00a884;
+}
+
+.welcome-content {
+  text-align: center;
+  color: #8696a0;
+}
+
+.welcome-content h2 {
+  font-size: 32px;
+  margin-bottom: 15px;
+  color: #e9edef;
+  font-weight: 300;
+}
+
+/* --- Mobile Responsiveness --- */
+@media screen and (max-width: 768px) {
+  .sidebar {
+    flex: 100%;
+    max-width: 100%;
+    min-width: 100%;
+  }
+
+  .main-chat {
+    flex: 100%;
+    width: 100vw;
+  }
+
+  /* When on mobile, toggle between sidebar and chat */
+  .hidden-mobile {
+    display: none !important;
+  }
+
+  .back-btn {
+    display: block; /* Show back button on mobile */
+    margin-right: 10px;
+  }
+}
