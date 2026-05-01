@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { socket } from './socket';
 import axios from 'axios';
-import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft } from 'lucide-react';
+import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X } from 'lucide-react';
+import { JitsiMeeting } from '@jitsi/react-sdk';
 import './App.css';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKEND_URL}/api` : 'http://localhost:5000/api';
@@ -9,6 +10,7 @@ const API_URL = import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKE
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loginPhone, setLoginPhone] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   
   const [contacts, setContacts] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -17,8 +19,22 @@ function App() {
   
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContactPhone, setNewContactPhone] = useState('');
+
+  // Call feature state
+  const [isCalling, setIsCalling] = useState(false);
+  const [callType, setCallType] = useState('video'); // 'audio' or 'video'
   
   const messagesEndRef = useRef(null);
+
+  // Auto Login on startup
+  useEffect(() => {
+    const savedPhone = localStorage.getItem('raabta_phone');
+    if (savedPhone) {
+      doLogin(savedPhone);
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -30,7 +46,7 @@ function App() {
     socket.connect();
 
     const handlePrivateMessage = (msg) => {
-      // Only append if it's the current chat, otherwise maybe show a notification
+      // Only append if it's the current chat
       if (activeChat && (msg.sender._id === activeChat._id || msg.sender._id === currentUser?._id)) {
         setMessages(prev => [...prev, msg]);
       }
@@ -44,17 +60,33 @@ function App() {
     };
   }, [activeChat, currentUser]);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!loginPhone) return;
+  const doLogin = async (phoneNumber) => {
     try {
-      const res = await axios.post(`${API_URL}/login`, { phoneNumber: loginPhone });
+      const res = await axios.post(`${API_URL}/login`, { phoneNumber });
       setCurrentUser(res.data);
       setContacts(res.data.contacts || []);
+      localStorage.setItem('raabta_phone', phoneNumber);
       socket.emit('register', res.data._id);
     } catch (err) {
       alert('Error logging in');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (!loginPhone) return;
+    setIsLoading(true);
+    doLogin(loginPhone);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('raabta_phone');
+    setCurrentUser(null);
+    setActiveChat(null);
+    setContacts([]);
+    socket.disconnect();
   };
 
   const handleAddContact = async (e) => {
@@ -95,6 +127,19 @@ function App() {
     }
   };
 
+  const startCall = (type) => {
+    setCallType(type);
+    setIsCalling(true);
+  };
+
+  const endCall = () => {
+    setIsCalling(false);
+  };
+
+  if (isLoading) {
+    return <div className="login-container"><div style={{color: 'white'}}>Loading...</div></div>;
+  }
+
   if (!currentUser) {
     return (
       <div className="login-container">
@@ -115,18 +160,21 @@ function App() {
     );
   }
 
+  // Generate unique room name based on both user IDs sorted
+  const roomName = activeChat ? `RaabtaCall_${[currentUser._id, activeChat._id].sort().join('')}` : '';
+
   return (
     <div className="app-container">
       {/* Sidebar - Hidden on mobile if activeChat exists */}
-      <div className={`sidebar ${activeChat ? 'hidden-mobile' : ''}`}>
+      <div className={`sidebar ${(activeChat || isCalling) ? 'hidden-mobile' : ''}`}>
         <div className="sidebar-header">
           <div className="profile-pic">
             <User size={24} color="#fff" />
           </div>
           <div className="header-icons">
             <MessageSquare size={20} className="icon" />
-            <Plus size={24} className="icon" onClick={() => setShowAddContact(!showAddContact)} />
-            <MoreVertical size={20} className="icon" />
+            <Plus size={24} className="icon" onClick={() => setShowAddContact(!showAddContact)} title="Add Contact" />
+            <LogOut size={20} className="icon" onClick={handleLogout} title="Logout" />
           </div>
         </div>
 
@@ -153,7 +201,10 @@ function App() {
             <div 
               key={contact._id} 
               className={`chat-item ${activeChat?._id === contact._id ? 'active' : ''}`}
-              onClick={() => loadChat(contact)}
+              onClick={() => {
+                loadChat(contact);
+                setIsCalling(false); // End call if switching chats
+              }}
             >
               <div className="profile-pic">
                 <User size={24} color="#fff" />
@@ -174,9 +225,40 @@ function App() {
         </div>
       </div>
 
-      {/* Main Chat Area - Hidden on mobile if NO activeChat */}
-      <div className={`main-chat ${!activeChat ? 'hidden-mobile' : ''}`}>
-        {activeChat ? (
+      {/* Main Area */}
+      <div className={`main-chat ${(!activeChat && !isCalling) ? 'hidden-mobile' : ''}`}>
+        {isCalling ? (
+          <div className="call-container">
+            <div className="call-header">
+              <h3>Calling {activeChat.phoneNumber}</h3>
+              <button onClick={endCall} className="end-call-btn">
+                <X size={24} /> End Call
+              </button>
+            </div>
+            <JitsiMeeting
+              domain="meet.jit.si"
+              roomName={roomName}
+              configOverwrite={{
+                startWithAudioMuted: false,
+                startWithVideoMuted: callType === 'audio',
+              }}
+              interfaceConfigOverwrite={{
+                DISABLE_JOIN_LEAVE_NOTIFICATIONS: true
+              }}
+              userInfo={{
+                displayName: currentUser.phoneNumber
+              }}
+              onApiReady={(externalApi) => {
+                // Attach custom event listeners here if needed
+                externalApi.addListener('videoConferenceLeft', endCall);
+              }}
+              getIFrameRef={(iframeRef) => {
+                iframeRef.style.height = '100%';
+                iframeRef.style.width = '100%';
+              }}
+            />
+          </div>
+        ) : activeChat ? (
           <>
             <div className="chat-header">
               <div className="chat-header-info">
@@ -194,8 +276,8 @@ function App() {
                 </div>
               </div>
               <div className="header-icons">
-                <Video size={20} className="icon" />
-                <Phone size={20} className="icon" />
+                <Video size={20} className="icon" onClick={() => startCall('video')} title="Video Call" />
+                <Phone size={20} className="icon" onClick={() => startCall('audio')} title="Audio Call" />
                 <MoreVertical size={20} className="icon" />
               </div>
             </div>
