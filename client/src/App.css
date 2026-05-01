@@ -80,6 +80,7 @@
 
 .sidebar-header, .chat-header {
   height: 60px;
+  flex-shrink: 0;
   background-color: #202c33;
   display: flex;
   align-items: center;
@@ -280,6 +281,7 @@
 
 .chat-input-container {
   padding: 10px 16px;
+  flex-shrink: 0;
   background-color: #202c33;
   display: flex;
   align-items: center;

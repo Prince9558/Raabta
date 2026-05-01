@@ -36,21 +36,42 @@ function App() {
     }
   }, []);
 
+  const activeChatRef = useRef(activeChat);
+  const currentUserRef = useRef(currentUser);
+
   // Auto scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Keep refs updated
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+  
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
   // Handle Socket events
   useEffect(() => {
     socket.connect();
 
+    const onConnect = () => {
+      if (currentUserRef.current) {
+        socket.emit('register', currentUserRef.current._id);
+      }
+    };
+
     const handlePrivateMessage = (msg) => {
+      const currentActiveChat = activeChatRef.current;
+      const currentUsr = currentUserRef.current;
+      
       // Only append if it's the current chat
-      if (activeChat) {
-        const isFromActiveContact = msg.sender._id === activeChat._id;
-        const isToActiveContact = msg.receiver === activeChat._id || (msg.receiver._id && msg.receiver._id === activeChat._id);
-        const isFromMe = msg.sender._id === currentUser?._id;
+      if (currentActiveChat) {
+        const isFromActiveContact = msg.sender._id === currentActiveChat._id;
+        const isToActiveContact = msg.receiver === currentActiveChat._id || (msg.receiver._id && msg.receiver._id === currentActiveChat._id);
+        const isFromMe = msg.sender._id === currentUsr?._id;
         
         if (isFromActiveContact || (isFromMe && isToActiveContact)) {
           // Check if it's already added optimistically (by me)
@@ -67,13 +88,15 @@ function App() {
       }
     };
 
+    socket.on('connect', onConnect);
     socket.on('private message', handlePrivateMessage);
 
     return () => {
+      socket.off('connect', onConnect);
       socket.off('private message', handlePrivateMessage);
       socket.disconnect();
     };
-  }, [activeChat, currentUser]);
+  }, []); // Run only once on mount
 
   const doLogin = async (phoneNumber) => {
     try {
