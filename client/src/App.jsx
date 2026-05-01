@@ -77,6 +77,9 @@ function App() {
         const isFromMe = msg.sender._id === currentUsr?._id;
         
         if (isFromActiveContact || (isFromMe && isToActiveContact)) {
+          if (isFromActiveContact) {
+            socket.emit('mark as read', { senderId: msg.sender._id, receiverId: currentUsr._id });
+          }
           // Check if it's already added optimistically (by me)
           setMessages(prev => {
             if (isFromMe && prev.some(p => p.text === msg.text && p._id && p._id.startsWith('optimistic_'))) {
@@ -95,14 +98,45 @@ function App() {
       setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
     };
 
+    const handleMessagesRead = ({ receiverId }) => {
+      setMessages(prev => prev.map(m => {
+        if (m.receiver === receiverId || m.receiver?._id === receiverId) {
+          return { ...m, status: 'read' };
+        }
+        return m;
+      }));
+    };
+
+    const handleMessagesDelivered = ({ receiverId }) => {
+      setMessages(prev => prev.map(m => {
+        if ((m.receiver === receiverId || m.receiver?._id === receiverId) && m.status === 'sent') {
+          return { ...m, status: 'delivered' };
+        }
+        return m;
+      }));
+    };
+
+    const handleUserStatusUpdate = ({ userId, isOnline, lastSeen }) => {
+      setContacts(prev => prev.map(c => c._id === userId ? { ...c, isOnline, lastSeen } : c));
+      if (activeChatRef.current && activeChatRef.current._id === userId) {
+        setActiveChat(prev => ({ ...prev, isOnline, lastSeen }));
+      }
+    };
+
     socket.on('connect', onConnect);
     socket.on('private message', handlePrivateMessage);
     socket.on('reaction updated', handleReactionUpdated);
+    socket.on('messages read', handleMessagesRead);
+    socket.on('messages delivered', handleMessagesDelivered);
+    socket.on('user status update', handleUserStatusUpdate);
 
     return () => {
       socket.off('connect', onConnect);
       socket.off('private message', handlePrivateMessage);
       socket.off('reaction updated', handleReactionUpdated);
+      socket.off('messages read', handleMessagesRead);
+      socket.off('messages delivered', handleMessagesDelivered);
+      socket.off('user status update', handleUserStatusUpdate);
       socket.disconnect();
     };
   }, []); // Run only once on mount
@@ -169,6 +203,7 @@ function App() {
     try {
       const res = await axios.get(`${API_URL}/messages/${currentUserId}/${contact._id}`);
       setMessages(res.data);
+      socket.emit('mark as read', { senderId: contact._id, receiverId: currentUserId });
     } catch (err) {
       console.error(err);
     }
@@ -222,6 +257,12 @@ function App() {
 
   const endCall = () => {
     setIsCalling(false);
+  };
+
+  const getTicks = (status) => {
+    if (status === 'read') return <span className="msg-ticks read">✓✓</span>;
+    if (status === 'delivered') return <span className="msg-ticks delivered">✓✓</span>;
+    return <span className="msg-ticks sent">✓</span>;
   };
 
   if (isLoading) {
@@ -363,7 +404,7 @@ function App() {
                 </div>
                 <div className="chat-title">
                   <h3>{activeChat.phoneNumber}</h3>
-                  <p>Online</p>
+                  <p>{activeChat.isOnline ? 'Online' : 'Offline'}</p>
                 </div>
               </div>
               <div className="header-icons">
@@ -387,7 +428,7 @@ function App() {
                     <p>{msg.text}</p>
                     <span className="msg-time">
                       {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
-                      {isSentByMe && <span className="msg-ticks">✓✓</span>}
+                      {isSentByMe && getTicks(msg.status || 'sent')}
                     </span>
                     {msg.reaction && (
                       <div className="reaction-bubble">{msg.reaction}</div>

@@ -289,9 +289,16 @@
 }
 
 .msg-ticks {
-  color: #53bdeb;
   font-size: 11px;
   line-height: 1;
+}
+
+.msg-ticks.read {
+  color: #53bdeb;
+}
+
+.msg-ticks.sent, .msg-ticks.delivered {
+  color: #8696a0;
 }
 
 .message-actions {

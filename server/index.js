@@ -95,14 +95,24 @@ io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
   socket.on('register', async (userId) => {
+    socket.userId = userId;
     socket.join(userId);
-    await User.findByIdAndUpdate(userId, { socketId: socket.id });
+    await User.findByIdAndUpdate(userId, { socketId: socket.id, isOnline: true });
+    io.emit('user status update', { userId, isOnline: true });
+    
+    // Update any 'sent' messages to 'delivered'
+    await Message.updateMany({ receiver: userId, status: 'sent' }, { status: 'delivered' });
+    io.emit('messages delivered', { receiverId: userId });
+    
     console.log(`User ${userId} registered to socket ${socket.id}`);
   });
 
   socket.on('private message', async ({ senderId, receiverId, text, replyTo }) => {
     try {
-      const msg = new Message({ sender: senderId, receiver: receiverId, text, replyTo });
+      const receiver = await User.findById(receiverId);
+      const initialStatus = receiver.isOnline ? 'delivered' : 'sent';
+
+      const msg = new Message({ sender: senderId, receiver: receiverId, text, replyTo, status: initialStatus });
       await msg.save();
       
       const populatedMsg = await Message.findById(msg._id).populate('sender', 'phoneNumber');
@@ -128,7 +138,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
+  socket.on('mark as read', async ({ senderId, receiverId }) => {
+    try {
+      await Message.updateMany({ sender: senderId, receiver: receiverId, status: { $ne: 'read' } }, { status: 'read' });
+      io.to(senderId).emit('messages read', { receiverId });
+    } catch (err) {
+      console.error('Error marking as read:', err);
+    }
+  });
+
+  socket.on('disconnect', async () => {
+    if (socket.userId) {
+      await User.findByIdAndUpdate(socket.userId, { isOnline: false, lastSeen: Date.now() });
+      io.emit('user status update', { userId: socket.userId, isOnline: false, lastSeen: Date.now() });
+    }
     console.log('User disconnected:', socket.id);
   });
 });
