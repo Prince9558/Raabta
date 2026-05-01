@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft } from 'lucide-react';
 import './App.css';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKEND_URL}/api` : 'http://localhost:5000/api';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
