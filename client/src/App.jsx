@@ -27,6 +27,7 @@ function App() {
   // Reply feature
   const [replyingTo, setReplyingTo] = useState(null);
   const touchStartRef = useRef(null);
+  const isTouchRef = useRef(false);
   const longPressTimerRef = useRef(null);
 
   // Reaction feature
@@ -280,6 +281,7 @@ function App() {
   };
 
   const onTouchStart = (e, msg) => {
+    isTouchRef.current = true;
     touchStartRef.current = {
       x: e.targetTouches[0].clientX,
       y: e.targetTouches[0].clientY,
@@ -333,10 +335,16 @@ function App() {
     }
     
     touchStartRef.current = null;
+    
+    setTimeout(() => {
+      isTouchRef.current = false;
+    }, 500);
   };
 
   const handleContextMenu = (e, msg) => {
     e.preventDefault();
+    if (isTouchRef.current) return;
+    
     setContextMenu({
       mouseX: e.clientX,
       mouseY: e.clientY,
