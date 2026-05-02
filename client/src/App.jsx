@@ -26,6 +26,11 @@ function App() {
   
   // Reply feature
   const [replyingTo, setReplyingTo] = useState(null);
+  const touchStartRef = useRef(null);
+
+  // Reaction feature
+  const [activeReactionMsg, setActiveReactionMsg] = useState(null);
+  const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
   
   const messagesEndRef = useRef(null);
 
@@ -250,6 +255,30 @@ function App() {
     }
   };
 
+  const onTouchStart = (e) => {
+    touchStartRef.current = e.targetTouches[0].clientX;
+  };
+
+  const onTouchMove = (e, msg) => {
+    if (touchStartRef.current === null) return;
+    const diff = e.targetTouches[0].clientX - touchStartRef.current;
+    if (diff > 50) {
+      setReplyingTo(msg);
+      touchStartRef.current = null;
+    }
+  };
+
+  const onTouchEnd = () => {
+    touchStartRef.current = null;
+  };
+
+  // Close reaction picker if clicking elsewhere
+  useEffect(() => {
+    const handleClickOutside = () => setActiveReactionMsg(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
   const startCall = (type) => {
     setCallType(type);
     setIsCalling(true);
@@ -418,7 +447,29 @@ function App() {
               {messages.map((msg, index) => {
                 const isSentByMe = msg.sender === currentUser._id || msg.sender?._id === currentUser._id;
                 return (
-                  <div key={index} className={`message ${isSentByMe ? 'sent' : 'received'}`}>
+                  <div 
+                    key={index} 
+                    className={`message ${isSentByMe ? 'sent' : 'received'}`}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={(e) => onTouchMove(e, msg)}
+                    onTouchEnd={onTouchEnd}
+                  >
+                    {activeReactionMsg === msg._id && (
+                      <div className="reaction-picker">
+                        {EMOJIS.map(emoji => (
+                          <span 
+                            key={emoji} 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sendReaction(msg._id, emoji);
+                              setActiveReactionMsg(null);
+                            }}
+                          >
+                            {emoji}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {msg.replyTo && (
                       <div className="message-reply">
                         <div className="name">{msg.replyTo.senderName}</div>
@@ -437,7 +488,10 @@ function App() {
                       <div className="action-btn" onClick={() => setReplyingTo(msg)}>
                         <Reply size={14} />
                       </div>
-                      <div className="action-btn" onClick={() => sendReaction(msg._id, '❤️')}>
+                      <div className="action-btn" onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveReactionMsg(msg._id);
+                      }}>
                         <Smile size={14} />
                       </div>
                     </div>

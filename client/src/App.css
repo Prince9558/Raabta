@@ -334,6 +334,30 @@
   z-index: 10;
 }
 
+.reaction-picker {
+  position: absolute;
+  top: -45px;
+  right: 0;
+  background-color: #202c33;
+  padding: 8px 12px;
+  border-radius: 20px;
+  display: flex;
+  gap: 12px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  z-index: 100;
+  border: 1px solid #2a3942;
+}
+
+.reaction-picker span {
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.reaction-picker span:hover {
+  transform: scale(1.2);
+}
+
 .message-reply {
   background-color: rgba(0,0,0,0.15);
   border-left: 4px solid #00a884;
