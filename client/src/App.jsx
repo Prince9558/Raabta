@@ -33,6 +33,9 @@ function App() {
   const [activeReactionMsg, setActiveReactionMsg] = useState(null);
   const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
   
+  // Context Menu for desktop right click
+  const [contextMenu, setContextMenu] = useState(null);
+  
   const messagesEndRef = useRef(null);
 
   // Auto Login on startup
@@ -312,10 +315,26 @@ function App() {
     touchStartRef.current = null;
   };
 
+  const handleContextMenu = (e, msg) => {
+    e.preventDefault();
+    setContextMenu({
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      msg: msg
+    });
+  };
+
   useEffect(() => {
-    const handleClickOutside = () => setActiveReactionMsg(null);
+    const handleClickOutside = () => {
+      setActiveReactionMsg(null);
+      setContextMenu(null);
+    };
     window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
+    window.addEventListener('scroll', handleClickOutside, true);
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('scroll', handleClickOutside, true);
+    };
   }, []);
 
   const startCall = (type) => {
@@ -493,6 +512,7 @@ function App() {
                     onTouchStart={(e) => onTouchStart(e, msg)}
                     onTouchMove={(e) => onTouchMove(e, msg._id || msg.text)}
                     onTouchEnd={() => onTouchEnd(msg)}
+                    onContextMenu={(e) => handleContextMenu(e, msg)}
                   >
                     {activeReactionMsg === msg._id && (
                       <div className="reaction-picker">
@@ -562,6 +582,29 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* Custom Context Menu */}
+      {contextMenu && (
+        <div 
+          className="context-menu"
+          style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
+        >
+          <div className="context-menu-item" onClick={(e) => {
+            e.stopPropagation();
+            setReplyingTo(contextMenu.msg);
+            setContextMenu(null);
+          }}>
+            Reply
+          </div>
+          <div className="context-menu-item" onClick={(e) => {
+             e.stopPropagation();
+             setActiveReactionMsg(contextMenu.msg._id);
+             setContextMenu(null);
+          }}>
+            React
+          </div>
+        </div>
+      )}
     </div>
   );
 }

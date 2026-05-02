@@ -307,7 +307,6 @@
 .reaction-bubble {
   position: absolute;
   bottom: -10px;
-  right: 10px;
   background-color: #202c33;
   border: 1px solid #111b21;
   border-radius: 12px;
@@ -316,10 +315,17 @@
   z-index: 10;
 }
 
+.message.sent .reaction-bubble {
+  right: 10px;
+}
+
+.message.received .reaction-bubble {
+  left: 10px;
+}
+
 .reaction-picker {
   position: absolute;
   top: -45px;
-  right: 0;
   background-color: #202c33;
   padding: 8px 12px;
   border-radius: 20px;
@@ -330,6 +336,14 @@
   border: 1px solid #2a3942;
 }
 
+.message.sent .reaction-picker {
+  right: 0;
+}
+
+.message.received .reaction-picker {
+  left: 0;
+}
+
 .reaction-picker span {
   font-size: 20px;
   cursor: pointer;
@@ -338,6 +352,28 @@
 
 .reaction-picker span:hover {
   transform: scale(1.2);
+}
+
+/* Context Menu */
+.context-menu {
+  position: fixed;
+  background-color: #233138;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  padding: 8px 0;
+  z-index: 1000;
+  min-width: 150px;
+}
+
+.context-menu-item {
+  padding: 10px 20px;
+  color: #d1d7db;
+  cursor: pointer;
+  font-size: 14.5px;
+}
+
+.context-menu-item:hover {
+  background-color: #182229;
 }
 
 
