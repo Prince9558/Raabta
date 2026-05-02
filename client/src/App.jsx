@@ -31,7 +31,7 @@ function App() {
 
   // Reaction feature
   const [activeReactionMsg, setActiveReactionMsg] = useState(null);
-  const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+  const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '❌'];
   
   // Context Menu for desktop right click
   const [contextMenu, setContextMenu] = useState(null);
@@ -50,10 +50,14 @@ function App() {
 
   const activeChatRef = useRef(activeChat);
   const currentUserRef = useRef(currentUser);
+  const prevMessagesLengthRef = useRef(0);
 
   // Auto scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length !== prevMessagesLengthRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMessagesLengthRef.current = messages.length;
   }, [messages]);
 
   // Keep refs updated
@@ -132,9 +136,14 @@ function App() {
       }
     };
 
+    const handleMessageDeleted = (messageId) => {
+      setMessages(prev => prev.filter(m => m._id !== messageId));
+    };
+
     socket.on('connect', onConnect);
     socket.on('private message', handlePrivateMessage);
     socket.on('reaction updated', handleReactionUpdated);
+    socket.on('message deleted', handleMessageDeleted);
     socket.on('messages read', handleMessagesRead);
     socket.on('messages delivered', handleMessagesDelivered);
     socket.on('user status update', handleUserStatusUpdate);
@@ -143,6 +152,7 @@ function App() {
       socket.off('connect', onConnect);
       socket.off('private message', handlePrivateMessage);
       socket.off('reaction updated', handleReactionUpdated);
+      socket.off('message deleted', handleMessageDeleted);
       socket.off('messages read', handleMessagesRead);
       socket.off('messages delivered', handleMessagesDelivered);
       socket.off('user status update', handleUserStatusUpdate);
@@ -251,10 +261,20 @@ function App() {
 
   const sendReaction = (messageId, emoji) => {
     if (messageId && !messageId.startsWith('optimistic_')) {
+      const reactionValue = emoji === '❌' ? '' : emoji;
       socket.emit('reaction', {
         messageId,
         receiverId: activeChat._id,
-        reaction: emoji
+        reaction: reactionValue
+      });
+    }
+  };
+
+  const deleteMessage = (messageId) => {
+    if (messageId && !messageId.startsWith('optimistic_')) {
+      socket.emit('delete message', {
+        messageId,
+        receiverId: activeChat._id
       });
     }
   };
@@ -528,6 +548,16 @@ function App() {
                             {emoji}
                           </span>
                         ))}
+                        <span 
+                          style={{ borderLeft: '1px solid #8696a0', paddingLeft: '12px', marginLeft: '4px' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMessage(msg._id);
+                            setActiveReactionMsg(null);
+                          }}
+                        >
+                          🗑️
+                        </span>
                       </div>
                     )}
                     {msg.replyTo && (
@@ -602,6 +632,13 @@ function App() {
              setContextMenu(null);
           }}>
             React
+          </div>
+          <div className="context-menu-item" onClick={(e) => {
+             e.stopPropagation();
+             deleteMessage(contextMenu.msg._id);
+             setContextMenu(null);
+          }}>
+            Delete
           </div>
         </div>
       )}

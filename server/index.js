@@ -138,6 +138,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('delete message', async ({ messageId, receiverId }) => {
+    try {
+      await Message.findByIdAndDelete(messageId);
+      io.to(receiverId).emit('message deleted', messageId);
+      if (socket.userId) {
+        io.to(socket.userId).emit('message deleted', messageId);
+      }
+    } catch (err) {
+      console.error('Error deleting message:', err);
+    }
+  });
+
   socket.on('mark as read', async ({ senderId, receiverId }) => {
     try {
       await Message.updateMany({ sender: senderId, receiver: receiverId, status: { $ne: 'read' } }, { status: 'read' });
