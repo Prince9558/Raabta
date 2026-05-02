@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { socket } from './socket';
 import axios from 'axios';
-import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X, Reply, Smile } from 'lucide-react';
+import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X } from 'lucide-react';
 import { JitsiMeeting } from '@jitsi/react-sdk';
 import './App.css';
 
@@ -27,10 +27,6 @@ function App() {
   // Reply feature
   const [replyingTo, setReplyingTo] = useState(null);
   const touchStartRef = useRef(null);
-
-  // Reaction feature
-  const [activeReactionMsg, setActiveReactionMsg] = useState(null);
-  const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
   
   const messagesEndRef = useRef(null);
 
@@ -130,7 +126,6 @@ function App() {
 
     socket.on('connect', onConnect);
     socket.on('private message', handlePrivateMessage);
-    socket.on('reaction updated', handleReactionUpdated);
     socket.on('messages read', handleMessagesRead);
     socket.on('messages delivered', handleMessagesDelivered);
     socket.on('user status update', handleUserStatusUpdate);
@@ -138,7 +133,6 @@ function App() {
     return () => {
       socket.off('connect', onConnect);
       socket.off('private message', handlePrivateMessage);
-      socket.off('reaction updated', handleReactionUpdated);
       socket.off('messages read', handleMessagesRead);
       socket.off('messages delivered', handleMessagesDelivered);
       socket.off('user status update', handleUserStatusUpdate);
@@ -245,39 +239,45 @@ function App() {
     }
   };
 
-  const sendReaction = (messageId, emoji) => {
-    if (messageId && !messageId.startsWith('optimistic_')) {
-      socket.emit('reaction', {
-        messageId,
-        receiverId: activeChat._id,
-        reaction: emoji
-      });
+  const onTouchStart = (e, msgId) => {
+    touchStartRef.current = {
+      x: e.targetTouches[0].clientX,
+      id: msgId
+    };
+  };
+
+  const onTouchMove = (e, msgId) => {
+    if (!touchStartRef.current || touchStartRef.current.id !== msgId) return;
+    
+    const diff = e.targetTouches[0].clientX - touchStartRef.current.x;
+    if (diff > 0 && diff < 80) { // Limit max slide distance
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) {
+        el.style.transform = `translateX(${diff}px)`;
+      }
     }
   };
 
-  const onTouchStart = (e) => {
-    touchStartRef.current = e.targetTouches[0].clientX;
-  };
+  const onTouchEnd = (msg) => {
+    if (!touchStartRef.current || touchStartRef.current.id !== msg._id) return;
 
-  const onTouchMove = (e, msg) => {
-    if (touchStartRef.current === null) return;
-    const diff = e.targetTouches[0].clientX - touchStartRef.current;
-    if (diff > 50) {
-      setReplyingTo(msg);
-      touchStartRef.current = null;
+    const el = document.getElementById(`msg-${msg._id}`);
+    if (el) {
+      const match = el.style.transform.match(/translateX\((.+)px\)/);
+      if (match && parseFloat(match[1]) > 40) {
+        setReplyingTo(msg);
+      }
+      
+      el.style.transition = 'transform 0.2s ease-out';
+      el.style.transform = 'translateX(0px)';
+      
+      setTimeout(() => {
+        el.style.transition = '';
+      }, 200);
     }
-  };
-
-  const onTouchEnd = () => {
+    
     touchStartRef.current = null;
   };
-
-  // Close reaction picker if clicking elsewhere
-  useEffect(() => {
-    const handleClickOutside = () => setActiveReactionMsg(null);
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
-  }, []);
 
   const startCall = (type) => {
     setCallType(type);
@@ -449,27 +449,12 @@ function App() {
                 return (
                   <div 
                     key={index} 
+                    id={`msg-${msg._id || index}`}
                     className={`message ${isSentByMe ? 'sent' : 'received'}`}
-                    onTouchStart={onTouchStart}
-                    onTouchMove={(e) => onTouchMove(e, msg)}
-                    onTouchEnd={onTouchEnd}
+                    onTouchStart={(e) => onTouchStart(e, msg._id || index)}
+                    onTouchMove={(e) => onTouchMove(e, msg._id || index)}
+                    onTouchEnd={() => onTouchEnd(msg)}
                   >
-                    {activeReactionMsg === msg._id && (
-                      <div className="reaction-picker">
-                        {EMOJIS.map(emoji => (
-                          <span 
-                            key={emoji} 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              sendReaction(msg._id, emoji);
-                              setActiveReactionMsg(null);
-                            }}
-                          >
-                            {emoji}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                     {msg.replyTo && (
                       <div className="message-reply">
                         <div className="name">{msg.replyTo.senderName}</div>
@@ -481,20 +466,6 @@ function App() {
                       {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
                       {isSentByMe && getTicks(msg.status || 'sent')}
                     </span>
-                    {msg.reaction && (
-                      <div className="reaction-bubble">{msg.reaction}</div>
-                    )}
-                    <div className="message-actions">
-                      <div className="action-btn" onClick={() => setReplyingTo(msg)}>
-                        <Reply size={14} />
-                      </div>
-                      <div className="action-btn" onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveReactionMsg(msg._id);
-                      }}>
-                        <Smile size={14} />
-                      </div>
-                    </div>
                   </div>
                 );
               })}

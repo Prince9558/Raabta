@@ -301,62 +301,7 @@
   color: #8696a0;
 }
 
-.message-actions {
-  position: absolute;
-  top: 5px;
-  right: -30px;
-  display: none;
-  gap: 5px;
-}
 
-.message:hover .message-actions {
-  display: flex;
-}
-
-.action-btn {
-  background-color: #202c33;
-  border-radius: 50%;
-  padding: 5px;
-  cursor: pointer;
-  color: #aebac1;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-
-.reaction-bubble {
-  position: absolute;
-  bottom: -10px;
-  left: 10px;
-  background-color: #202c33;
-  border: 1px solid #111b21;
-  border-radius: 12px;
-  padding: 2px 4px;
-  font-size: 14px;
-  z-index: 10;
-}
-
-.reaction-picker {
-  position: absolute;
-  top: -45px;
-  right: 0;
-  background-color: #202c33;
-  padding: 8px 12px;
-  border-radius: 20px;
-  display: flex;
-  gap: 12px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-  z-index: 100;
-  border: 1px solid #2a3942;
-}
-
-.reaction-picker span {
-  font-size: 20px;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.reaction-picker span:hover {
-  transform: scale(1.2);
-}
 
 .message-reply {
   background-color: rgba(0,0,0,0.15);
@@ -512,12 +457,5 @@
   .back-btn {
     display: block; /* Show back button on mobile */
     margin-right: 10px;
-  }
-  
-  .message-actions {
-    display: flex;
-    right: 5px;
-    top: 5px;
-    opacity: 0.5;
   }
 }
