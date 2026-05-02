@@ -104,10 +104,6 @@ function App() {
       setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
     };
 
-    const handleReactionUpdated = (updatedMsg) => {
-      setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
-    };
-
     const handleMessagesRead = ({ receiverId }) => {
       setMessages(prev => prev.map(m => {
         if (m.receiver === receiverId || m.receiver?._id === receiverId) {
