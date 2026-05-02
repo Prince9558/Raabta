@@ -27,6 +27,11 @@ function App() {
   // Reply feature
   const [replyingTo, setReplyingTo] = useState(null);
   const touchStartRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+
+  // Reaction feature
+  const [activeReactionMsg, setActiveReactionMsg] = useState(null);
+  const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
   
   const messagesEndRef = useRef(null);
 
@@ -99,6 +104,10 @@ function App() {
       setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
     };
 
+    const handleReactionUpdated = (updatedMsg) => {
+      setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
+    };
+
     const handleMessagesRead = ({ receiverId }) => {
       setMessages(prev => prev.map(m => {
         if (m.receiver === receiverId || m.receiver?._id === receiverId) {
@@ -126,6 +135,7 @@ function App() {
 
     socket.on('connect', onConnect);
     socket.on('private message', handlePrivateMessage);
+    socket.on('reaction updated', handleReactionUpdated);
     socket.on('messages read', handleMessagesRead);
     socket.on('messages delivered', handleMessagesDelivered);
     socket.on('user status update', handleUserStatusUpdate);
@@ -133,6 +143,7 @@ function App() {
     return () => {
       socket.off('connect', onConnect);
       socket.off('private message', handlePrivateMessage);
+      socket.off('reaction updated', handleReactionUpdated);
       socket.off('messages read', handleMessagesRead);
       socket.off('messages delivered', handleMessagesDelivered);
       socket.off('user status update', handleUserStatusUpdate);
@@ -239,29 +250,55 @@ function App() {
     }
   };
 
-  const onTouchStart = (e, msgId) => {
+  const sendReaction = (messageId, emoji) => {
+    if (messageId && !messageId.startsWith('optimistic_')) {
+      socket.emit('reaction', {
+        messageId,
+        receiverId: activeChat._id,
+        reaction: emoji
+      });
+    }
+  };
+
+  const onTouchStart = (e, msg) => {
     touchStartRef.current = {
       x: e.targetTouches[0].clientX,
-      id: msgId
+      y: e.targetTouches[0].clientY,
+      id: msg._id || msg.text,
+      msg: msg
     };
+
+    longPressTimerRef.current = setTimeout(() => {
+      if (navigator.vibrate) navigator.vibrate(50);
+      setActiveReactionMsg(msg._id);
+      touchStartRef.current = null;
+    }, 500);
   };
 
   const onTouchMove = (e, msgId) => {
     if (!touchStartRef.current || touchStartRef.current.id !== msgId) return;
     
-    const diff = e.targetTouches[0].clientX - touchStartRef.current.x;
-    if (diff > 0 && diff < 80) { // Limit max slide distance
+    const diffX = e.targetTouches[0].clientX - touchStartRef.current.x;
+    const diffY = Math.abs(e.targetTouches[0].clientY - touchStartRef.current.y);
+
+    if (diffY > 10 || Math.abs(diffX) > 10) {
+      clearTimeout(longPressTimerRef.current);
+    }
+
+    if (diffX > 0 && diffX < 80) { // Limit max slide distance
       const el = document.getElementById(`msg-${msgId}`);
       if (el) {
-        el.style.transform = `translateX(${diff}px)`;
+        el.style.transform = `translateX(${diffX}px)`;
       }
     }
   };
 
   const onTouchEnd = (msg) => {
-    if (!touchStartRef.current || touchStartRef.current.id !== msg._id) return;
+    clearTimeout(longPressTimerRef.current);
 
-    const el = document.getElementById(`msg-${msg._id}`);
+    if (!touchStartRef.current || touchStartRef.current.id !== (msg._id || msg.text)) return;
+
+    const el = document.getElementById(`msg-${msg._id || msg.text}`);
     if (el) {
       const match = el.style.transform.match(/translateX\((.+)px\)/);
       if (match && parseFloat(match[1]) > 40) {
@@ -278,6 +315,12 @@ function App() {
     
     touchStartRef.current = null;
   };
+
+  useEffect(() => {
+    const handleClickOutside = () => setActiveReactionMsg(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const startCall = (type) => {
     setCallType(type);
@@ -449,12 +492,28 @@ function App() {
                 return (
                   <div 
                     key={index} 
-                    id={`msg-${msg._id || index}`}
+                    id={`msg-${msg._id || msg.text}`}
                     className={`message ${isSentByMe ? 'sent' : 'received'}`}
-                    onTouchStart={(e) => onTouchStart(e, msg._id || index)}
-                    onTouchMove={(e) => onTouchMove(e, msg._id || index)}
+                    onTouchStart={(e) => onTouchStart(e, msg)}
+                    onTouchMove={(e) => onTouchMove(e, msg._id || msg.text)}
                     onTouchEnd={() => onTouchEnd(msg)}
                   >
+                    {activeReactionMsg === msg._id && (
+                      <div className="reaction-picker">
+                        {EMOJIS.map(emoji => (
+                          <span 
+                            key={emoji} 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sendReaction(msg._id, emoji);
+                              setActiveReactionMsg(null);
+                            }}
+                          >
+                            {emoji}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {msg.replyTo && (
                       <div className="message-reply">
                         <div className="name">{msg.replyTo.senderName}</div>
@@ -466,6 +525,9 @@ function App() {
                       {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
                       {isSentByMe && getTicks(msg.status || 'sent')}
                     </span>
+                    {msg.reaction && (
+                      <div className="reaction-bubble">{msg.reaction}</div>
+                    )}
                   </div>
                 );
               })}
