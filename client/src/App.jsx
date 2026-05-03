@@ -392,22 +392,27 @@ function App() {
   const handleFileUpload = (e, type) => {
     const file = e.target.files[0];
     if (file && activeChat) {
-      const msgText = `[Shared ${type}: ${file.name}]`;
-      const optimisticMsg = {
-        _id: `optimistic_${Date.now()}`,
-        sender: currentUser,
-        receiver: activeChat._id,
-        text: msgText,
-        createdAt: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, optimisticMsg]);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result;
+        
+        const optimisticMsg = {
+          _id: `optimistic_${Date.now()}`,
+          sender: currentUser,
+          receiver: activeChat._id,
+          text: base64data,
+          createdAt: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
 
-      socket.emit('private message', {
-        senderId: currentUser._id,
-        receiverId: activeChat._id,
-        text: msgText
-      });
-      setShowAttachmentMenu(false);
+        socket.emit('private message', {
+          senderId: currentUser._id,
+          receiverId: activeChat._id,
+          text: base64data
+        });
+        setShowAttachmentMenu(false);
+      };
+      reader.readAsDataURL(file);
     }
     // reset input
     e.target.value = '';
@@ -433,21 +438,26 @@ function App() {
         };
 
         mediaRecorder.onstop = () => {
-          const msgText = `[Voice Message]`;
-          const optimisticMsg = {
-            _id: `optimistic_${Date.now()}`,
-            sender: currentUser,
-            receiver: activeChat._id,
-            text: msgText,
-            createdAt: new Date().toISOString()
-          };
-          setMessages(prev => [...prev, optimisticMsg]);
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64data = reader.result;
+            const optimisticMsg = {
+              _id: `optimistic_${Date.now()}`,
+              sender: currentUser,
+              receiver: activeChat._id,
+              text: base64data,
+              createdAt: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, optimisticMsg]);
 
-          socket.emit('private message', {
-            senderId: currentUser._id,
-            receiverId: activeChat._id,
-            text: msgText
-          });
+            socket.emit('private message', {
+              senderId: currentUser._id,
+              receiverId: activeChat._id,
+              text: base64data
+            });
+          };
+          reader.readAsDataURL(audioBlob);
           
           stream.getTracks().forEach(track => track.stop());
         };
@@ -658,10 +668,20 @@ function App() {
                     {msg.replyTo && (
                       <div className="message-reply">
                         <div className="name">{msg.replyTo.senderName}</div>
-                        <div className="text">{msg.replyTo.text}</div>
+                        <div className="text">{msg.replyTo.text.startsWith('data:') ? 'Media attached' : msg.replyTo.text}</div>
                       </div>
                     )}
-                    <p>{msg.text}</p>
+                    {msg.text.startsWith('data:image/') ? (
+                      <img src={msg.text} alt="attachment" style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
+                    ) : msg.text.startsWith('data:audio/') ? (
+                      <audio controls src={msg.text} style={{ width: '250px', height: '40px', marginTop: '5px' }} />
+                    ) : msg.text.startsWith('data:video/') ? (
+                      <video controls src={msg.text} style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
+                    ) : msg.text.startsWith('data:') ? (
+                      <a href={msg.text} download="document_attachment" style={{ color: '#53bdeb', display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 0' }}><FileText size={20}/> Download Attachment</a>
+                    ) : (
+                      <p>{msg.text}</p>
+                    )}
                     <span className="msg-time">
                       {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}
                       {isSentByMe && getTicks(msg.status || 'sent')}
