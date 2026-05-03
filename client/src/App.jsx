@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { socket } from './socket';
 import axios from 'axios';
-import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X, Smile, Paperclip, Camera, Mic, FileText, Image, Headphones, MapPin, BarChart2 } from 'lucide-react';
+import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X, Smile, Paperclip, Camera, Mic, FileText, Image, Headphones, MapPin, BarChart2, Calendar, Sparkles, StopCircle } from 'lucide-react';
+import EmojiPicker from 'emoji-picker-react';
 import { JitsiMeeting } from '@jitsi/react-sdk';
 import './App.css';
 
@@ -38,8 +39,17 @@ function App() {
   const [contextMenu, setContextMenu] = useState(null);
   
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   
   const messagesEndRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  
+  const galleryRef = useRef(null);
+  const cameraRef = useRef(null);
+  const documentRef = useRef(null);
+  const audioRef = useRef(null);
 
   // Auto Login on startup
   useEffect(() => {
@@ -355,10 +365,12 @@ function App() {
   };
 
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e) => {
+      if (e.target.closest('.emoji-picker-react')) return;
       setActiveReactionMsg(null);
       setContextMenu(null);
       setShowAttachmentMenu(false);
+      setShowEmojiPicker(false);
     };
     window.addEventListener('click', handleClickOutside);
     window.addEventListener('scroll', handleClickOutside, true);
@@ -375,6 +387,78 @@ function App() {
 
   const endCall = () => {
     setIsCalling(false);
+  };
+
+  const handleFileUpload = (e, type) => {
+    const file = e.target.files[0];
+    if (file && activeChat) {
+      const msgText = `[Shared ${type}: ${file.name}]`;
+      const optimisticMsg = {
+        _id: `optimistic_${Date.now()}`,
+        sender: currentUser,
+        receiver: activeChat._id,
+        text: msgText,
+        createdAt: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, optimisticMsg]);
+
+      socket.emit('private message', {
+        senderId: currentUser._id,
+        receiverId: activeChat._id,
+        text: msgText
+      });
+      setShowAttachmentMenu(false);
+    }
+    // reset input
+    e.target.value = '';
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+      }
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const msgText = `[Voice Message]`;
+          const optimisticMsg = {
+            _id: `optimistic_${Date.now()}`,
+            sender: currentUser,
+            receiver: activeChat._id,
+            text: msgText,
+            createdAt: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, optimisticMsg]);
+
+          socket.emit('private message', {
+            senderId: currentUser._id,
+            receiverId: activeChat._id,
+            text: msgText
+          });
+          
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error('Error accessing microphone', err);
+        alert('Could not access microphone');
+      }
+    }
   };
 
   const getTicks = (status) => {
@@ -601,41 +685,63 @@ function App() {
                   <X className="close-reply" size={20} onClick={() => setReplyingTo(null)} style={{cursor: 'pointer'}} />
                 </div>
               )}
+              {showEmojiPicker && (
+                <div className="emoji-picker-wrapper" onClick={(e) => e.stopPropagation()}>
+                  <EmojiPicker 
+                    theme="dark" 
+                    onEmojiClick={(e) => setInputMessage(prev => prev + e.emoji)} 
+                  />
+                </div>
+              )}
               {showAttachmentMenu && (
                 <div className="attachment-menu" onClick={(e) => e.stopPropagation()}>
-                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
-                    <div className="icon-circle document"><FileText size={20} color="#fff" /></div>
-                    <span>Document</span>
+                  <div className="attachment-item" onClick={() => galleryRef.current.click()}>
+                    <div className="icon-circle"><Image size={24} color="#53bdeb" /></div>
+                    <span>Gallery</span>
                   </div>
-                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
-                    <div className="icon-circle camera-item"><Camera size={20} color="#fff" /></div>
+                  <div className="attachment-item" onClick={() => cameraRef.current.click()}>
+                    <div className="icon-circle"><Camera size={24} color="#ff3366" /></div>
                     <span>Camera</span>
                   </div>
                   <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
-                    <div className="icon-circle gallery"><Image size={20} color="#fff" /></div>
-                    <span>Gallery</span>
-                  </div>
-                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
-                    <div className="icon-circle audio"><Headphones size={20} color="#fff" /></div>
-                    <span>Audio</span>
-                  </div>
-                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
-                    <div className="icon-circle location"><MapPin size={20} color="#fff" /></div>
+                    <div className="icon-circle"><MapPin size={24} color="#1fa855" /></div>
                     <span>Location</span>
                   </div>
                   <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
-                    <div className="icon-circle contact-item"><User size={20} color="#fff" /></div>
+                    <div className="icon-circle"><User size={24} color="#0099ff" /></div>
                     <span>Contact</span>
                   </div>
+                  <div className="attachment-item" onClick={() => documentRef.current.click()}>
+                    <div className="icon-circle"><FileText size={24} color="#7f66ff" /></div>
+                    <span>Document</span>
+                  </div>
+                  <div className="attachment-item" onClick={() => audioRef.current.click()}>
+                    <div className="icon-circle"><Headphones size={24} color="#f96533" /></div>
+                    <span>Audio</span>
+                  </div>
                   <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
-                    <div className="icon-circle poll"><BarChart2 size={20} color="#fff" /></div>
+                    <div className="icon-circle"><BarChart2 size={24} color="#ffb300" /></div>
                     <span>Poll</span>
                   </div>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle"><Calendar size={24} color="#ff3366" /></div>
+                    <span>Event</span>
+                  </div>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle"><Sparkles size={24} color="#53bdeb" /></div>
+                    <span>AI images</span>
+                  </div>
+                  
+                  {/* Hidden Inputs */}
+                  <input type="file" ref={galleryRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={(e) => handleFileUpload(e, 'Gallery')} />
+                  <input type="file" ref={cameraRef} style={{ display: 'none' }} accept="image/*" capture="environment" onChange={(e) => handleFileUpload(e, 'Camera')} />
+                  <input type="file" ref={documentRef} style={{ display: 'none' }} accept="*" onChange={(e) => handleFileUpload(e, 'Document')} />
+                  <input type="file" ref={audioRef} style={{ display: 'none' }} accept="audio/*" onChange={(e) => handleFileUpload(e, 'Audio')} />
                 </div>
               )}
               <div className="chat-input-wrapper">
                 <div className="input-bar">
-                  <Smile size={24} className="icon emoji-icon" />
+                  <Smile size={24} className="icon emoji-icon" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); setShowAttachmentMenu(false); }} />
                   <form onSubmit={sendMessage} className="chat-form">
                     <input
                       type="text"
@@ -647,19 +753,21 @@ function App() {
                   <Paperclip 
                     size={24} 
                     className="icon attachment-icon" 
-                    onClick={(e) => { e.stopPropagation(); setShowAttachmentMenu(!showAttachmentMenu); }} 
+                    onClick={(e) => { e.stopPropagation(); setShowAttachmentMenu(!showAttachmentMenu); setShowEmojiPicker(false); }} 
                   />
-                  {!inputMessage.trim() && <Camera size={24} className="icon camera-icon" />}
+                  {!inputMessage.trim() && <Camera size={24} className="icon camera-icon" onClick={() => cameraRef.current?.click()} />}
                 </div>
                 <button 
-                  className={`voice-send-btn ${inputMessage.trim() ? 'send' : 'voice'}`}
+                  className={`voice-send-btn ${inputMessage.trim() ? 'send' : 'voice'} ${isRecording ? 'recording' : ''}`}
                   onClick={(e) => {
                     if (inputMessage.trim()) {
                       sendMessage(e);
+                    } else {
+                      toggleRecording();
                     }
                   }}
                 >
-                  {inputMessage.trim() ? <Send size={20} /> : <Mic size={20} />}
+                  {inputMessage.trim() ? <Send size={20} /> : (isRecording ? <StopCircle size={20} color="#ff3366" /> : <Mic size={20} />)}
                 </button>
               </div>
             </div>
