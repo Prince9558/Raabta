@@ -82,6 +82,26 @@ function App() {
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
+  // Helper to update local storage for inactive chats
+  const updateLocalStorageForChat = (contactId, updaterCallback) => {
+    if (!currentUserRef.current) return;
+    const key = `raabta_messages_${currentUserRef.current._id}_${contactId}`;
+    const saved = localStorage.getItem(key);
+    let chatMsgs = [];
+    if (saved) {
+      try { chatMsgs = JSON.parse(saved); } catch (e) {}
+    }
+    const updatedMsgs = updaterCallback(chatMsgs);
+    localStorage.setItem(key, JSON.stringify(updatedMsgs));
+  };
+
+  // Auto save active chat messages
+  useEffect(() => {
+    if (activeChat && currentUser) {
+      localStorage.setItem(`raabta_messages_${currentUser._id}_${activeChat._id}`, JSON.stringify(messages));
+    }
+  }, [messages, activeChat, currentUser]);
+
   // Handle Socket events
   useEffect(() => {
     socket.connect();
@@ -96,32 +116,35 @@ function App() {
       const currentActiveChat = activeChatRef.current;
       const currentUsr = currentUserRef.current;
       
-      // Only append if it's the current chat
-      if (currentActiveChat) {
-        const isFromActiveContact = msg.sender._id === currentActiveChat._id;
-        const isToActiveContact = msg.receiver === currentActiveChat._id || (msg.receiver._id && msg.receiver._id === currentActiveChat._id);
-        const isFromMe = msg.sender._id === currentUsr?._id;
-        
-        if (isFromActiveContact || (isFromMe && isToActiveContact)) {
-          if (isFromActiveContact) {
-            socket.emit('mark as read', { senderId: msg.sender._id, receiverId: currentUsr._id });
-          }
-          // Check if it's already added optimistically (by me)
-          setMessages(prev => {
-            if (isFromMe && prev.some(p => p.text === msg.text && p._id && p._id.startsWith('optimistic_'))) {
-              // Replace optimistic message with actual DB message
-              return prev.map(p => (p.text === msg.text && p._id && p._id.startsWith('optimistic_')) ? msg : p);
-            }
-            // Check for strict duplicates
-            if (prev.some(p => p._id === msg._id)) return prev;
-            return [...prev, msg];
-          });
+      const isFromMe = msg.sender._id === currentUsr?._id;
+      const otherContactId = isFromMe ? (msg.receiver._id || msg.receiver) : msg.sender._id;
+
+      if (currentActiveChat && currentActiveChat._id === otherContactId) {
+        if (!isFromMe) {
+          socket.emit('mark as read', { senderId: msg.sender._id, receiverId: currentUsr._id });
         }
+        setMessages(prev => {
+          if (isFromMe && prev.some(p => p.text === msg.text && p._id && p._id.startsWith('optimistic_'))) {
+            return prev.map(p => (p.text === msg.text && p._id && p._id.startsWith('optimistic_')) ? msg : p);
+          }
+          if (prev.some(p => p._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
+      } else {
+        updateLocalStorageForChat(otherContactId, (prev) => {
+          if (isFromMe && prev.some(p => p.text === msg.text && p._id && p._id.startsWith('optimistic_'))) {
+            return prev.map(p => (p.text === msg.text && p._id && p._id.startsWith('optimistic_')) ? msg : p);
+          }
+          if (prev.some(p => p._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
       }
     };
 
     const handleReactionUpdated = (updatedMsg) => {
       setMessages(prev => prev.map(m => m._id === updatedMsg._id ? { ...m, reaction: updatedMsg.reaction } : m));
+      // Also update in all local storage just in case (we don't know the chat ID easily here without checking)
+      // Usually it's in the active chat, but if it's not, we'd need to search.
     };
 
     const handleMessagesRead = ({ receiverId }) => {
@@ -232,9 +255,21 @@ function App() {
   const loadChat = async (contact, currentUserId = currentUser?._id) => {
     setActiveChat(contact);
     localStorage.setItem('raabta_active_chat', contact._id);
+    
+    // Load from local storage instead of backend API
+    const key = `raabta_messages_${currentUserId}_${contact._id}`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved));
+      } catch (e) {
+        setMessages([]);
+      }
+    } else {
+      setMessages([]);
+    }
+
     try {
-      const res = await axios.get(`${API_URL}/messages/${currentUserId}/${contact._id}`);
-      setMessages(res.data);
       socket.emit('mark as read', { senderId: contact._id, receiverId: currentUserId });
     } catch (err) {
       console.error(err);
