@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { socket } from './socket';
 import axios from 'axios';
-import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X, Smile, Paperclip, Camera, Mic, FileText, Image, Headphones, MapPin, BarChart2, Calendar, Sparkles, StopCircle } from 'lucide-react';
+import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X, Smile, Paperclip, Camera, Mic, FileText, Image, Headphones, MapPin, BarChart2, Calendar, Sparkles, StopCircle, Trash2 } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { JitsiMeeting } from '@jitsi/react-sdk';
 import './App.css';
@@ -41,6 +41,8 @@ function App() {
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const recordingTimerRef = useRef(null);
   
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -471,11 +473,43 @@ function App() {
     e.target.value = '';
   };
 
-  const toggleRecording = async () => {
+  const formatRecordingTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const startRecordingTimer = () => {
+    setRecordingTime(0);
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingTime(prev => prev + 1);
+    }, 1000);
+  };
+
+  const stopRecordingTimer = () => {
+    clearInterval(recordingTimerRef.current);
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.onstop = null; // Prevent sending
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      stopRecordingTimer();
+    }
+  };
+
+  const toggleRecording = async (shouldSend = true) => {
     if (isRecording) {
       if (mediaRecorderRef.current) {
+        if (!shouldSend) {
+          cancelRecording();
+          return;
+        }
         mediaRecorderRef.current.stop();
         setIsRecording(false);
+        stopRecordingTimer();
       }
     } else {
       try {
@@ -516,6 +550,7 @@ function App() {
 
         mediaRecorder.start();
         setIsRecording(true);
+        startRecordingTimer();
       } catch (err) {
         console.error('Error accessing microphone', err);
         alert('Could not access microphone');
@@ -724,7 +759,7 @@ function App() {
                       </div>
                     )}
                     {msg.text.startsWith('IMG::') ? (
-                      <img src={msg.text.substring(5)} alt="attachment" style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
+                      <img src={msg.text.substring(5)} alt="attachment" style={{ maxWidth: '260px', maxHeight: '300px', objectFit: 'cover', borderRadius: '8px', marginTop: '5px' }} />
                     ) : msg.text.startsWith('AUD::') ? (
                       <audio controls src={msg.text.substring(5)} style={{ width: '250px', height: '40px', marginTop: '5px' }} />
                     ) : msg.text.startsWith('VID::') ? (
@@ -762,6 +797,9 @@ function App() {
                   <EmojiPicker 
                     theme="dark" 
                     onEmojiClick={(e) => setInputMessage(prev => prev + e.emoji)} 
+                    lazyLoadEmojis={true}
+                    width="100%"
+                    height="300px"
                   />
                 </div>
               )}
@@ -806,40 +844,53 @@ function App() {
                   
                   {/* Hidden Inputs */}
                   <input type="file" ref={galleryRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={(e) => handleFileUpload(e, 'Gallery')} />
-                  <input type="file" ref={cameraRef} style={{ display: 'none' }} accept="image/*" capture="environment" onChange={(e) => handleFileUpload(e, 'Camera')} />
+                  <input type="file" ref={cameraRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={(e) => handleFileUpload(e, 'Camera')} />
                   <input type="file" ref={documentRef} style={{ display: 'none' }} accept="*" onChange={(e) => handleFileUpload(e, 'Document')} />
                   <input type="file" ref={audioRef} style={{ display: 'none' }} accept="audio/*" onChange={(e) => handleFileUpload(e, 'Audio')} />
                 </div>
               )}
               <div className="chat-input-wrapper">
-                <div className="input-bar">
-                  <Smile size={24} className="icon emoji-icon" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); setShowAttachmentMenu(false); }} />
-                  <form onSubmit={sendMessage} className="chat-form">
-                    <input
-                      type="text"
-                      placeholder="Message"
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
+                {isRecording ? (
+                  <div className="recording-bar">
+                    <Trash2 size={24} color="#8696a0" className="icon recording-trash" onClick={cancelRecording} style={{cursor: 'pointer'}} />
+                    <div className="recording-timer">
+                      <div className="recording-dot"></div>
+                      {formatRecordingTime(recordingTime)}
+                    </div>
+                    <div className="recording-slide">{'<'} Slide to cancel</div>
+                  </div>
+                ) : (
+                  <div className="input-bar">
+                    <Smile size={24} className="icon emoji-icon" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); setShowAttachmentMenu(false); }} />
+                    <form onSubmit={sendMessage} className="chat-form">
+                      <input
+                        type="text"
+                        placeholder="Message"
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                      />
+                    </form>
+                    <Paperclip 
+                      size={24} 
+                      className="icon attachment-icon" 
+                      onClick={(e) => { e.stopPropagation(); setShowAttachmentMenu(!showAttachmentMenu); setShowEmojiPicker(false); }} 
                     />
-                  </form>
-                  <Paperclip 
-                    size={24} 
-                    className="icon attachment-icon" 
-                    onClick={(e) => { e.stopPropagation(); setShowAttachmentMenu(!showAttachmentMenu); setShowEmojiPicker(false); }} 
-                  />
-                  {!inputMessage.trim() && <Camera size={24} className="icon camera-icon" onClick={() => cameraRef.current?.click()} />}
-                </div>
+                    {!inputMessage.trim() && <Camera size={24} className="icon camera-icon" onClick={() => cameraRef.current?.click()} />}
+                  </div>
+                )}
                 <button 
-                  className={`voice-send-btn ${inputMessage.trim() ? 'send' : 'voice'} ${isRecording ? 'recording' : ''}`}
+                  className={`voice-send-btn ${(inputMessage.trim() || isRecording) ? 'send' : 'voice'}`}
                   onClick={(e) => {
-                    if (inputMessage.trim()) {
+                    if (isRecording) {
+                      toggleRecording(true);
+                    } else if (inputMessage.trim()) {
                       sendMessage(e);
                     } else {
-                      toggleRecording();
+                      toggleRecording(false);
                     }
                   }}
                 >
-                  {inputMessage.trim() ? <Send size={20} /> : (isRecording ? <StopCircle size={20} color="#ff3366" /> : <Mic size={20} />)}
+                  {(inputMessage.trim() || isRecording) ? <Send size={20} color="#fff" /> : <Mic size={24} color="#fff" />}
                 </button>
               </div>
             </div>
