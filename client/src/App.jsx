@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { socket } from './socket';
 import axios from 'axios';
-import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X } from 'lucide-react';
+import { Send, User, MoreVertical, MessageSquare, Phone, Video, Plus, ArrowLeft, LogOut, X, Smile, Paperclip, Camera, Mic, FileText, Image, Headphones, MapPin, BarChart2 } from 'lucide-react';
 import { JitsiMeeting } from '@jitsi/react-sdk';
 import './App.css';
 
@@ -36,6 +36,8 @@ function App() {
   
   // Context Menu for desktop right click
   const [contextMenu, setContextMenu] = useState(null);
+  
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   
   const messagesEndRef = useRef(null);
 
@@ -356,6 +358,7 @@ function App() {
     const handleClickOutside = () => {
       setActiveReactionMsg(null);
       setContextMenu(null);
+      setShowAttachmentMenu(false);
     };
     window.addEventListener('click', handleClickOutside);
     window.addEventListener('scroll', handleClickOutside, true);
@@ -598,17 +601,67 @@ function App() {
                   <X className="close-reply" size={20} onClick={() => setReplyingTo(null)} style={{cursor: 'pointer'}} />
                 </div>
               )}
-              <form onSubmit={sendMessage} className="chat-form">
-                <input
-                  type="text"
-                  placeholder="Type a message"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                />
-                <button type="submit" disabled={!inputMessage.trim()}>
-                  <Send size={20} />
+              {showAttachmentMenu && (
+                <div className="attachment-menu" onClick={(e) => e.stopPropagation()}>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle document"><FileText size={20} color="#fff" /></div>
+                    <span>Document</span>
+                  </div>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle camera-item"><Camera size={20} color="#fff" /></div>
+                    <span>Camera</span>
+                  </div>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle gallery"><Image size={20} color="#fff" /></div>
+                    <span>Gallery</span>
+                  </div>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle audio"><Headphones size={20} color="#fff" /></div>
+                    <span>Audio</span>
+                  </div>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle location"><MapPin size={20} color="#fff" /></div>
+                    <span>Location</span>
+                  </div>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle contact-item"><User size={20} color="#fff" /></div>
+                    <span>Contact</span>
+                  </div>
+                  <div className="attachment-item" onClick={() => setShowAttachmentMenu(false)}>
+                    <div className="icon-circle poll"><BarChart2 size={20} color="#fff" /></div>
+                    <span>Poll</span>
+                  </div>
+                </div>
+              )}
+              <div className="chat-input-wrapper">
+                <div className="input-bar">
+                  <Smile size={24} className="icon emoji-icon" />
+                  <form onSubmit={sendMessage} className="chat-form">
+                    <input
+                      type="text"
+                      placeholder="Message"
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                    />
+                  </form>
+                  <Paperclip 
+                    size={24} 
+                    className="icon attachment-icon" 
+                    onClick={(e) => { e.stopPropagation(); setShowAttachmentMenu(!showAttachmentMenu); }} 
+                  />
+                  {!inputMessage.trim() && <Camera size={24} className="icon camera-icon" />}
+                </div>
+                <button 
+                  className={`voice-send-btn ${inputMessage.trim() ? 'send' : 'voice'}`}
+                  onClick={(e) => {
+                    if (inputMessage.trim()) {
+                      sendMessage(e);
+                    }
+                  }}
+                >
+                  {inputMessage.trim() ? <Send size={20} /> : <Mic size={20} />}
                 </button>
-              </form>
+              </div>
             </div>
           </>
         ) : (
