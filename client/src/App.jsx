@@ -121,7 +121,7 @@ function App() {
     };
 
     const handleReactionUpdated = (updatedMsg) => {
-      setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
+      setMessages(prev => prev.map(m => m._id === updatedMsg._id ? { ...m, reaction: updatedMsg.reaction } : m));
     };
 
     const handleMessagesRead = ({ receiverId }) => {
@@ -389,18 +389,37 @@ function App() {
     setIsCalling(false);
   };
 
-  const handleFileUpload = (e, type) => {
+  const uploadToCloudinary = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'raabta');
+
+    try {
+      const res = await axios.post('https://api.cloudinary.com/v1_1/drzcpveus/auto/upload', formData);
+      return res.data.secure_url;
+    } catch (err) {
+      console.error('Error uploading to Cloudinary', err);
+      return null;
+    }
+  };
+
+  const handleFileUpload = async (e, type) => {
     const file = e.target.files[0];
     if (file && activeChat) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64data = reader.result;
+      const url = await uploadToCloudinary(file);
+      if (url) {
+        let prefix = 'DOC::';
+        if (file.type.startsWith('image/')) prefix = 'IMG::';
+        else if (file.type.startsWith('video/')) prefix = 'VID::';
+        else if (file.type.startsWith('audio/')) prefix = 'AUD::';
+
+        const msgText = `${prefix}${url}`;
         
         const optimisticMsg = {
           _id: `optimistic_${Date.now()}`,
           sender: currentUser,
           receiver: activeChat._id,
-          text: base64data,
+          text: msgText,
           createdAt: new Date().toISOString()
         };
         setMessages(prev => [...prev, optimisticMsg]);
@@ -408,11 +427,10 @@ function App() {
         socket.emit('private message', {
           senderId: currentUser._id,
           receiverId: activeChat._id,
-          text: base64data
+          text: msgText
         });
         setShowAttachmentMenu(false);
-      };
-      reader.readAsDataURL(file);
+      }
     }
     // reset input
     e.target.value = '';
@@ -437,16 +455,16 @@ function App() {
           }
         };
 
-        mediaRecorder.onstop = () => {
+        mediaRecorder.onstop = async () => {
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64data = reader.result;
+          const url = await uploadToCloudinary(audioBlob);
+          if (url) {
+            const msgText = `AUD::${url}`;
             const optimisticMsg = {
               _id: `optimistic_${Date.now()}`,
               sender: currentUser,
               receiver: activeChat._id,
-              text: base64data,
+              text: msgText,
               createdAt: new Date().toISOString()
             };
             setMessages(prev => [...prev, optimisticMsg]);
@@ -454,10 +472,9 @@ function App() {
             socket.emit('private message', {
               senderId: currentUser._id,
               receiverId: activeChat._id,
-              text: base64data
+              text: msgText
             });
-          };
-          reader.readAsDataURL(audioBlob);
+          }
           
           stream.getTracks().forEach(track => track.stop());
         };
@@ -668,17 +685,17 @@ function App() {
                     {msg.replyTo && (
                       <div className="message-reply">
                         <div className="name">{msg.replyTo.senderName}</div>
-                        <div className="text">{msg.replyTo.text.startsWith('data:') ? 'Media attached' : msg.replyTo.text}</div>
+                        <div className="text">{msg.replyTo.text.match(/^(IMG::|AUD::|VID::|DOC::)/) ? 'Media attached' : msg.replyTo.text}</div>
                       </div>
                     )}
-                    {msg.text.startsWith('data:image/') ? (
-                      <img src={msg.text} alt="attachment" style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
-                    ) : msg.text.startsWith('data:audio/') ? (
-                      <audio controls src={msg.text} style={{ width: '250px', height: '40px', marginTop: '5px' }} />
-                    ) : msg.text.startsWith('data:video/') ? (
-                      <video controls src={msg.text} style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
-                    ) : msg.text.startsWith('data:') ? (
-                      <a href={msg.text} download="document_attachment" style={{ color: '#53bdeb', display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 0' }}><FileText size={20}/> Download Attachment</a>
+                    {msg.text.startsWith('IMG::') ? (
+                      <img src={msg.text.substring(5)} alt="attachment" style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
+                    ) : msg.text.startsWith('AUD::') ? (
+                      <audio controls src={msg.text.substring(5)} style={{ width: '250px', height: '40px', marginTop: '5px' }} />
+                    ) : msg.text.startsWith('VID::') ? (
+                      <video controls src={msg.text.substring(5)} style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
+                    ) : msg.text.startsWith('DOC::') ? (
+                      <a href={msg.text.substring(5)} target="_blank" download="document_attachment" style={{ color: '#53bdeb', display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 0' }}><FileText size={20}/> Download Attachment</a>
                     ) : (
                       <p>{msg.text}</p>
                     )}

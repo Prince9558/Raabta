@@ -5,7 +5,6 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import User from './models/User.js';
-import Message from './models/Message.js';
 
 dotenv.config();
 
@@ -77,18 +76,8 @@ app.post('/api/contacts/add', async (req, res) => {
 });
 
 app.get('/api/messages/:userId/:contactId', async (req, res) => {
-  const { userId, contactId } = req.params;
-  try {
-    const messages = await Message.find({
-      $or: [
-        { sender: userId, receiver: contactId },
-        { sender: contactId, receiver: userId }
-      ]
-    }).sort('createdAt');
-    res.json(messages);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  // Ephemeral messaging: we no longer store messages in the database
+  res.json([]);
 });
 
 // Socket.io Implementation
@@ -101,8 +90,7 @@ io.on('connection', (socket) => {
     await User.findByIdAndUpdate(userId, { socketId: socket.id, isOnline: true });
     io.emit('user status update', { userId, isOnline: true });
     
-    // Update any 'sent' messages to 'delivered'
-    await Message.updateMany({ receiver: userId, status: 'sent' }, { status: 'delivered' });
+    // Removed database update for 'sent' to 'delivered' since messages are ephemeral
     io.emit('messages delivered', { receiverId: userId });
     
     console.log(`User ${userId} registered to socket ${socket.id}`);
@@ -110,30 +98,36 @@ io.on('connection', (socket) => {
 
   socket.on('private message', async ({ senderId, receiverId, text, replyTo }) => {
     try {
+      const sender = await User.findById(senderId).select('phoneNumber');
       const receiver = await User.findById(receiverId);
-      const initialStatus = receiver.isOnline ? 'delivered' : 'sent';
+      const initialStatus = receiver && receiver.isOnline ? 'delivered' : 'sent';
 
-      const msg = new Message({ sender: senderId, receiver: receiverId, text, replyTo, status: initialStatus });
-      await msg.save();
-      
-      const populatedMsg = await Message.findById(msg._id).populate('sender', 'phoneNumber');
+      const msg = {
+        _id: Date.now().toString() + Math.random().toString(36).substring(7),
+        sender: sender,
+        receiver: receiverId,
+        text,
+        replyTo,
+        status: initialStatus,
+        createdAt: new Date().toISOString()
+      };
 
       // Emit to receiver
-      io.to(receiverId).emit('private message', populatedMsg);
+      io.to(receiverId).emit('private message', msg);
       // Emit to sender
-      io.to(senderId).emit('private message', populatedMsg);
+      io.to(senderId).emit('private message', msg);
     } catch (err) {
-      console.error('Error saving message:', err);
+      console.error('Error sending message:', err);
     }
   });
 
   socket.on('reaction', async ({ messageId, receiverId, reaction }) => {
     try {
-      const msg = await Message.findByIdAndUpdate(messageId, { reaction }, { new: true }).populate('sender', 'phoneNumber');
-      io.to(receiverId).emit('reaction updated', msg);
-      // also send back to sender so they see it
-      const senderIdStr = msg.sender._id.toString();
-      io.to(senderIdStr).emit('reaction updated', msg);
+      io.to(receiverId).emit('reaction updated', { _id: messageId, reaction });
+      if (socket.userId) {
+        const senderIdStr = socket.userId.toString();
+        io.to(senderIdStr).emit('reaction updated', { _id: messageId, reaction });
+      }
     } catch (err) {
       console.error('Error adding reaction:', err);
     }
@@ -141,7 +135,6 @@ io.on('connection', (socket) => {
 
   socket.on('delete message', async ({ messageId, receiverId }) => {
     try {
-      await Message.findByIdAndDelete(messageId);
       io.to(receiverId).emit('message deleted', messageId);
       if (socket.userId) {
         io.to(socket.userId).emit('message deleted', messageId);
@@ -153,7 +146,6 @@ io.on('connection', (socket) => {
 
   socket.on('mark as read', async ({ senderId, receiverId }) => {
     try {
-      await Message.updateMany({ sender: senderId, receiver: receiverId, status: { $ne: 'read' } }, { status: 'read' });
       io.to(senderId).emit('messages read', { receiverId });
     } catch (err) {
       console.error('Error marking as read:', err);
